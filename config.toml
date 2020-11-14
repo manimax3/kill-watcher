@@ -1,0 +1,15 @@
+[db]
+pathfinder_name = "pathfinder"
+universe_name = "eve_universe"
+user = "root"
+password = "somepassword"
+host = "localhost"
+port = 3306
+
+[watcher]
+refresh = 6 # After how many seconds the systems should be refreshed
+map = "test"
+
+[discord]
+bot_token = "Nzc2NzkyODI0NDgxMDU0NzUw.X66CsQ.YQuWPVESjrXReCRaTKlXWnmCYUU"
+channel_id = 776794537955557449

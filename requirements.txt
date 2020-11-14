@@ -1,0 +1,5 @@
+websockets
+discord-py
+mysql-connector-python
+toml
+aiohttp
