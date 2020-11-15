@@ -6,6 +6,7 @@ import discord
 import toml
 import requests
 import mysql.connector as connector
+import logging as log
 
 class SystemsManager:
     def __init__(self, mapid):
@@ -31,6 +32,7 @@ config = toml.load("config.toml")
 db = config["db"]
 
 esi_endpoint = "https://esi.evetech.net/latest"
+log.basicConfig(format='%(asctime)s %(message)s', level=getattr(log, config["watcher"]["loglevel"], log.INFO))
 
 discord_client = discord.Client()
 
@@ -51,7 +53,11 @@ def fetch_systems(mapid):
 
 async def consumer(msg):
     msg = json.loads(msg)
-    print(msg)
+
+    if msg["action"] == "tqStatus":
+        log.debug(msg)
+    else:
+        log.info(msg)
 
     if not all(k in msg for k in ("killID", "hash")):
         return
@@ -68,7 +74,7 @@ async def consumer(msg):
 
     if system["security_status"] >= 0.5:
         # We dont care about highsec kills
-        print("Killmail filtered. Happend in HS")
+        log.info(f"Killmail {msg['killID']} filtered. Happend in HS")
         return
 
     if len(config["watcher"]["filter_corporations"]) > 0:
@@ -83,11 +89,11 @@ async def consumer(msg):
             attacker_corporations = set()
 
         if config["watcher"]["filter_if_victim"] and defender_corporation in filter_corporations:
-            print("Killmail filtered. Defender corporation filtered")
+            log.info(f"Killmail {msg['killID']} filtered. Defender corporation filtered")
             return
 
         if len(attacker_corporations) > 0 and len(filter_corporations.intersection(attacker_corporations)) > 0:
-            print("Killmail filtered. Attackers Corporation filtered")
+            log.info(f"Killmail {msg['killID']} filtered. Attackers Corporation filtered")
             return
 
     # Send data straight to discord
@@ -118,6 +124,6 @@ async def connect():
 
 @discord_client.event
 async def on_ready():
-    print(f"Initialized {discord_client.user.name}")
+    log.info(f"Initialized {discord_client.user.name}")
 
 asyncio.get_event_loop().run_until_complete(connect())

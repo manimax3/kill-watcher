@@ -7,6 +7,7 @@ host = "localhost"
 port = 3306
 
 [watcher]
+loglevel = "INFO"
 refresh = 6 # After how many seconds the systems should be refreshed
 mapid = 1
 filter_corporations = [
