@@ -29,7 +29,6 @@ class SystemsManager:
 
 config = toml.load("config.toml")
 db = config["db"]
-connection_working = False
 
 esi_endpoint = "https://esi.evetech.net/latest"
 
@@ -51,7 +50,6 @@ def fetch_systems(mapid):
     return results
 
 async def consumer(msg):
-    connection_working = True
     msg = json.loads(msg)
     print(msg)
     if "littlekill" != msg["action"].lower():
@@ -67,9 +65,20 @@ async def consumer(msg):
                 as response:
             system = await response.json()
 
-            if system["security_status"] >= 0.5:
-                # We dont care about highsec kills
-                return
+    if system["security_status"] >= 0.5:
+        # We dont care about highsec kills
+        return
+
+    if len(config["watcher"]["filter_corporations"]) > 0:
+        defender_corporation = killmail["victim"]["corporation_id"]
+        attacker_corporations = set([k["corporation_id"] for k in killmail["attackers"]])
+        filter_corporations = set(config["watcher"]["filter_corporations"])
+
+        if config["watcher"]["filter_if_victim"] and defender_corporation in filter_corporations:
+            return
+
+        if len(filter_corporations.intersection(attacker_corporations)) > 0:
+            return
 
     # Send data straight to discord
     channel = discord_client.get_channel(config["discord"]["channel_id"])
@@ -82,7 +91,7 @@ async def consumer_handler(websocket):
         await asyncio.sleep(0.5)
 
 async def producer_handler(websocket):
-    sm = SystemsManager(config["watcher"]["map"])
+    sm = SystemsManager(config["watcher"]["mapid"])
     await websocket.send(json.dumps({"action": "sub", "channel": "public"}))
     while True:
         commands = sm.update()
@@ -99,6 +108,6 @@ async def connect():
 
 @discord_client.event
 async def on_ready():
-    print(f"Intiaialized {discord_client.user.name}")
+    print(f"Initialized {discord_client.user.name}")
 
 asyncio.get_event_loop().run_until_complete(connect())

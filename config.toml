@@ -8,7 +8,11 @@ port = 3306
 
 [watcher]
 refresh = 6 # After how many seconds the systems should be refreshed
-mapd = 1
+mapid = 1
+filter_corporations = [
+	98658535,
+]
+filter_if_victim = true # Should the killmail be ignored if the victims corp was listed in filter_corporations
 
 [discord]
 bot_token = "Nzc2NzkyODI0NDgxMDU0NzUw.X66CsQ.YQuWPVESjrXReCRaTKlXWnmCYUU"
