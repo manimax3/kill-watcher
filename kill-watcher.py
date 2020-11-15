@@ -8,12 +8,12 @@ import requests
 import mysql.connector as connector
 
 class SystemsManager:
-    def __init__(self, mapname):
+    def __init__(self, mapid):
         self.systems = []
-        self.mapname = mapname
+        self.mapid = mapid
 
     def update(self):
-        new_systems = fetch_systems(self.mapname)
+        new_systems = fetch_systems(self.mapid)
         gone_systems = set(self.systems) - set(new_systems)
         added_systems = set(new_systems) - set(self.systems)
         self.systems = new_systems
@@ -35,13 +35,13 @@ esi_endpoint = "https://esi.evetech.net/latest"
 
 discord_client = discord.Client()
 
-def fetch_systems(mapname):
+def fetch_systems(mapid):
     con = connector.connect(user=db["user"], password=db["password"],
                             host=db["host"], port=db["port"], database=db["pathfinder_name"])
     cur = con.cursor()
 
     cur.execute(f"SELECT system.systemId FROM {db['pathfinder_name']}.map, {db['pathfinder_name']}.system "
-                "WHERE map.id = system.mapId AND map.name = %s", (mapname,))
+                "WHERE system.active <> 0 AND map.id = system.mapId AND map.id = %s", (mapid,))
 
     results = [row for row in cur]
 
@@ -63,13 +63,13 @@ async def consumer(msg):
                 as response:
             killmail = await response.json()
         async with s.get(
-            f"{esi_endpoint}/systems/{killmail['solar_system_id']}/?datasource=tranquility") \
+            f"{esi_endpoint}/universe/systems/{killmail['solar_system_id']}/?datasource=tranquility") \
                 as response:
             system = await response.json()
 
-    if system["security_status"] >= 0.5:
-        # We dont care about highsec kills
-        return
+            if system["security_status"] >= 0.5:
+                # We dont care about highsec kills
+                return
 
     # Send data straight to discord
     channel = discord_client.get_channel(config["discord"]["channel_id"])
