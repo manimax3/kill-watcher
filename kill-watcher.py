@@ -52,7 +52,8 @@ def fetch_systems(mapid):
 async def consumer(msg):
     msg = json.loads(msg)
     print(msg)
-    if "littlekill" != msg["action"].lower():
+
+    if not all(k in msg for k in ("killID", "hash", "solar_system_id")):
         return
 
     async with aiohttp.ClientSession() as s:
@@ -70,14 +71,20 @@ async def consumer(msg):
         return
 
     if len(config["watcher"]["filter_corporations"]) > 0:
-        defender_corporation = killmail["victim"]["corporation_id"]
-        attacker_corporations = set([k["corporation_id"] for k in killmail["attackers"]])
         filter_corporations = set(config["watcher"]["filter_corporations"])
+
+        try:
+            defender_corporation = killmail["victim"]["corporation_id"]
+            attacker_corporations = set([k["corporation_id"] for k in killmail["attackers"]])
+        except KeyError:
+            defender_corporation = ""
+            # Not all of this information is available for npc kills
+            attacker_corporations = set()
 
         if config["watcher"]["filter_if_victim"] and defender_corporation in filter_corporations:
             return
 
-        if len(filter_corporations.intersection(attacker_corporations)) > 0:
+        if len(attacker_corporations) > 0 and len(filter_corporations.intersection(attacker_corporations)) > 0:
             return
 
     # Send data straight to discord
