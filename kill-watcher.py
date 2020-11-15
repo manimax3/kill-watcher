@@ -90,11 +90,6 @@ async def producer_handler(websocket):
             await websocket.send(cmd)
         await asyncio.sleep(config["watcher"]["refresh"])
 
-async def handler(websocket):
-    consumer_task = asyncio.create_task(consumer_handler(websocket))
-    producer_task = asyncio.create_task(producer_handler(websocket))
-    await asyncio.wait([consumer_task, producer_task])
-
 async def connect():
     async with websockets.connect("wss://zkillboard.com/websocket/") as ws:
         d = asyncio.create_task(discord_client.start(config["discord"]["bot_token"]))
