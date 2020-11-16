@@ -97,7 +97,13 @@ async def consumer(msg):
 
     # Send data straight to discord
     channel = discord_client.get_channel(config["discord"]["channel_id"])
-    await channel.send(f"Kill occured in {system['name']}\n{msg['url']}")
+
+    if "ping_role_id" in config["discord"]:
+        ping_role = f"<@&{config['discord']['ping_role_id']}> "
+    else:
+        ping_role = ""
+
+    await channel.send(f"{ping_role}Kill occurred in {system['name']}\n{msg['url']}")
 
 async def consumer_handler(websocket):
     while True:
