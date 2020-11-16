@@ -2,4 +2,4 @@ websockets
 discord-py
 mysql-connector-python
 toml
-aiohttp
+aiohttp==3.6.0

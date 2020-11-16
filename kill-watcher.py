@@ -4,7 +4,6 @@ import websockets
 import json
 import discord
 import toml
-import requests
 import mysql.connector as connector
 import logging as log
 
