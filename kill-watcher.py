@@ -63,7 +63,7 @@ class SystemsManager:
         con.close()
 
         r = redis.Redis(host=red_conf["host"], port=red_conf["port"])
-        r.flushall(True)
+        r.flushall()
 
     def get_system_of_kill(self, kill_id):
         for k, s in self.kills:
@@ -139,7 +139,8 @@ async def consumer(msg):
         ping_role = ""
 
     sm.remember_kill(msg["killID"], killmail["solar_system_id"])
-    await channel.send(f"{ping_role}Kill occurred in {system['name']}\n{msg['url']}")
+    msg = await channel.send(f"{ping_role}Kill occurred in {system['name']}\n{msg['url']}")
+    await msg.add_reaction(config["discord"]["react_emoji_id"])
 
 async def consumer_handler(websocket):
     while True:
@@ -166,11 +167,13 @@ async def connect():
 async def on_ready():
     log.info(f"Initialized {discord_client.user.name}")
 
+
 @discord_client.event
 async def on_raw_reaction_add(payload):
     channel = discord_client.get_channel(config["discord"]["channel_id"])
 
-    if payload.channel_id != channel.id:
+    if payload.channel_id != channel.id or payload.user_id == discord_client.user.id \
+            or payload.emoji.name != config["discord"]["react_emoji_id"]:
         return
 
     msg = await channel.fetch_message(payload.message_id)
