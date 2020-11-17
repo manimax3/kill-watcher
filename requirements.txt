@@ -3,3 +3,4 @@ discord-py
 mysql-connector-python
 toml
 aiohttp==3.6.0
+redis
