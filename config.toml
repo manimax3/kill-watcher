@@ -23,4 +23,5 @@ filter_if_victim = true # Should the killmail be ignored if the victims corp was
 bot_token = "Nzc2NzkyODI0NDgxMDU0NzUw.X66CsQ.YQuWPVESjrXReCRaTKlXWnmCYUU"
 channel_id = 776794537955557449
 ping_role_id = 777991020649512961
+ping_only_wspace = true
 react_emoji_id = "🗺️" # Currently only unicode emojis working

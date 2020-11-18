@@ -8,7 +8,8 @@ import mysql.connector as connector
 import logging as log
 import re
 import redis
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
+from collections import defaultdict
 
 class SystemsManager:
     def __init__(self, mapid):
@@ -84,6 +85,7 @@ sm = SystemsManager(config["watcher"]["mapid"])
 
 re_killurl = re.compile(r"https://zkillboard\.com/kill/([0-9]+)/")
 re_sysname = re.compile(r"Kill occurred in (.*)\n")
+re_wspace_name = re.compile(r"J\d{6}")
 
 async def consumer(msg):
     msg = json.loads(msg)
@@ -130,16 +132,61 @@ async def consumer(msg):
             log.info(f"Killmail {msg['killID']} filtered. Attackers Corporation filtered")
             return
 
+    kill_time = datetime.fromisoformat(killmail["killmail_time"][:-1] + "+00:00")
+    delta = abs(datetime.now(tz=timezone.utc) - kill_time)
+    delta -= timedelta(microseconds=delta.microseconds)
+
+    iswspace = re_wspace_name.match(system["name"])
+
     # Send data straight to discord
     channel = discord_client.get_channel(config["discord"]["channel_id"])
 
-    if "ping_role_id" in config["discord"]:
+    if "ping_role_id" in config["discord"] and \
+            (not config["discord"]["ping_only_wspace"] or iswspace is not None):
         ping_role = f"<@&{config['discord']['ping_role_id']}> "
     else:
         ping_role = ""
 
+    attacker_count = len(killmail["attackers"])
+    corp_count = defaultdict(lambda: 0)
+    for attacker_corp in map(lambda a: a["corporation_id"],
+                             filter(lambda a: "corporation_id" in a, killmail["attackers"])):
+        corp_count[attacker_corp] += 1
+
+    if len(corp_count) > 0:
+        main_corp = max(corp_count.items(), key=lambda i: i[1])[0]
+    else:
+        main_corp = None
+
     sm.remember_kill(msg["killID"], killmail["solar_system_id"])
-    msg = await channel.send(f"{ping_role}Kill occurred in {system['name']}\n{msg['url']}")
+
+    final_message = [
+        ping_role,
+        f"Kill occurred in {system['name']}",
+        f"Happend {delta} ago.",
+        f"Attackers: {attacker_count}"
+    ]
+
+    if main_corp is not None:
+        async with aiohttp.ClientSession() as s:
+            async with s.get(
+                f"{esi_endpoint}/corporations/{main_corp}/") \
+                    as response:
+                corp_info = await response.json()
+            if "alliance_id" in corp_info:
+                async with s.get(
+                    f"{esi_endpoint}/alliances/{corp_info['alliance_id']}/") \
+                        as response:
+                    alli_info = await response.json()
+                    alli_name = ' (' + alli_info["name"] + ')'
+            else:
+                alli_name = ""
+        final_message.append(f"Attacking Corp: {corp_info['name']}{alli_name}")
+
+    final_message.append(msg["url"])
+
+    final_message = '\n'.join(final_message)
+    msg = await channel.send(final_message)
     await msg.add_reaction(config["discord"]["react_emoji_id"])
 
 async def consumer_handler(websocket):
