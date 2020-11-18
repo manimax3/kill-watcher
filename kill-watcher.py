@@ -118,7 +118,8 @@ async def consumer(msg):
 
         try:
             defender_corporation = killmail["victim"]["corporation_id"]
-            attacker_corporations = set([k["corporation_id"] for k in killmail["attackers"]])
+            attacker_corporations = set([k["corporation_id"] for k in
+                                         filter(lambda k: "corporation_id" in k, killmail["attackers"])])
         except KeyError:
             defender_corporation = ""
             # Not all of this information is available for npc kills
