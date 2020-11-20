@@ -19,6 +19,10 @@ filter_corporations = [
 ]
 filter_if_victim = true # Should the killmail be ignored if the victims corp was listed in filter_corporations
 
+filter_ship_types = [
+	670, # Capsule
+]
+
 [discord]
 bot_token = "Nzc2NzkyODI0NDgxMDU0NzUw.X66CsQ.YQuWPVESjrXReCRaTKlXWnmCYUU"
 channel_id = 776794537955557449

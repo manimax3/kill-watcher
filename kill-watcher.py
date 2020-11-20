@@ -133,6 +133,11 @@ async def consumer(msg):
             log.info(f"Killmail {msg['killID']} filtered. Attackers Corporation filtered")
             return
 
+    ship_type = killmail["victim"]["ship_type_id"]
+    if ship_type in config["watcher"]["filter_ship_types"]:
+        log.info(f"Killmail {msg['killID']} filtered. Ship type filtered.")
+        return
+
     kill_time = datetime.fromisoformat(killmail["killmail_time"][:-1] + "+00:00")
     delta = abs(datetime.now(tz=timezone.utc) - kill_time)
     delta -= timedelta(microseconds=delta.microseconds)
