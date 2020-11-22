@@ -11,6 +11,9 @@ import redis
 from datetime import datetime, timezone, timedelta
 from collections import defaultdict
 
+class SystemNotFound(Exception):
+    pass
+
 class SystemsManager:
     def __init__(self, mapid):
         self.systems = []
@@ -53,6 +56,12 @@ class SystemsManager:
         con = connector.connect(user=db["user"], password=db["password"],
                                 host=db["host"], port=db["port"], database=db["pathfinder_name"])
         cur = con.cursor()
+
+        cur.execute(f"SELECT count(*) FROM {db['pathfinder_name']}.system WHERE system.active <> 0 AND system.systemId = %s", (system_id,))
+        if cur.fetchone()[0] == 0:
+            cur.close()
+            con.close()
+            raise SystemNotFound("Could not set RallyPoint")
 
         timestamp = datetime.utcnow().strftime("%Y-%m-%d %T")
 
@@ -260,13 +269,17 @@ async def on_raw_reaction_add(payload):
         if system_id is not None and killid is not None:
             sm.remember_kill(killid, system_id)
 
-    sm.set_rally_point(system_id)
-
     match = re_sysname.search(msg.content)
+    if match is None:
+        return
 
-    if match is not None:
-        sysname = match.groups(1)[0]
+    sysname = match.groups(1)[0]
+
+    try:
+        sm.set_rally_point(system_id)
         await channel.send(f"Rally point set to {sysname}.")
+    except SystemNotFound:
+        await channel.send(f"Could not set rally point. System {sysname} no longer on the map.")
 
 
 asyncio.get_event_loop().run_until_complete(connect())
