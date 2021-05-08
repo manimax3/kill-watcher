@@ -11,6 +11,7 @@ from collections import defaultdict
 
 from system_manager import SystemsManager, SystemNotFound
 import esi
+import filters
 
 config = toml.load("config.toml")
 
@@ -24,6 +25,13 @@ sm = SystemsManager(config)
 re_killurl = re.compile(r"https://zkillboard\.com/kill/([0-9]+)/")
 re_sysname = re.compile(r"Kill occurred in (.*)\n")
 re_wspace_name = re.compile(r"J\d{6}")
+
+
+def check_filter(result, killid):
+    r, reason = result
+    if not r:
+        log.info(f"Killmail {killid} filtered. {reason}")
+    return not r
 
 
 async def consumer(msg):
@@ -40,42 +48,14 @@ async def consumer(msg):
     killmail = await esi.fetch_killmail(msg["killID"], msg["hash"])
     system = await esi.fetch_system(killmail["solar_system_id"])
 
-    if system["security_status"] >= 0.5:
-        # We dont care about highsec kills
-        log.info(f"Killmail {msg['killID']} filtered. Happend in HS")
-        return
-
-    if len(config["watcher"]["filter_corporations"]) > 0:
-        filter_corporations = set(config["watcher"]["filter_corporations"])
-
-        try:
-            defender_corporation = killmail["victim"]["corporation_id"]
-            attacker_corporations = set([
-                k["corporation_id"] for k in filter(
-                    lambda k: "corporation_id" in k, killmail["attackers"])
-            ])
-        except KeyError:
-            defender_corporation = ""
-            # Not all of this information is available for npc kills
-            attacker_corporations = set()
-
-        if config["watcher"][
-                "filter_if_victim"] and defender_corporation in filter_corporations:
-            log.info(
-                f"Killmail {msg['killID']} filtered. Defender corporation filtered"
-            )
-            return
-
-        if len(attacker_corporations) > 0 and len(
-                filter_corporations.intersection(attacker_corporations)) > 0:
-            log.info(
-                f"Killmail {msg['killID']} filtered. Attackers Corporation filtered"
-            )
-            return
-
-    ship_type = killmail["victim"]["ship_type_id"]
-    if ship_type in config["watcher"]["filter_ship_types"]:
-        log.info(f"Killmail {msg['killID']} filtered. Ship type filtered.")
+    if (check_filter(filters.highsec(system), msg["killID"]) or check_filter(
+            filters.corporations(
+                killmail, config["watcher"]["filter_corporations"],
+                config["watcher"]["filter_if_victim"]), msg["killID"])
+            or check_filter(
+                filters.ship_type(killmail,
+                                  config["watcher"]["filter_ship_types"]),
+                msg["killID"])):
         return
 
     kill_time = datetime.fromisoformat(killmail["killmail_time"][:-1] +
