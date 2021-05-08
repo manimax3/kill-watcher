@@ -118,7 +118,7 @@ class RoutingManager:
         system_security = {}
 
         db = self.config["db"]
-        dbname = "eve_universe"
+        dbname = self.config["db"]["universe_name"]
         with closing(
                 connector.connect(user=db["user"],
                                   password=db["password"],
