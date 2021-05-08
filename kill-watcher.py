@@ -92,7 +92,7 @@ async def consumer(msg):
 
     d, route = rm.shortest_route(killmail["solar_system_id"])
     route = rm.resolve_route_disi_nameing(route)
-    route = " -> ".join(route)
+    froute = " -> ".join(route)
 
     final_message = [
         ping_role, f"Kill occurred in {system['name']}",
@@ -106,10 +106,24 @@ async def consumer(msg):
         alli_name = ' (' + alli_info["name"] + ')' if alli_info else ""
         final_message.append(f"Attacking Corp: {corp_info['name']}{alli_name}")
 
+    embed = discord.Embed()
+    embed.title = "Killping"
+    embed.url = msg["url"]
+    embed.set_image(
+        url=
+        f"https://images.evetech.net/types/{killmail['victim']['ship_type_id']}/render?size=32"
+    )
+    embed.add_field(name="Location", value=system['name'], inline=True)
+    embed.add_field(name="Attackers", value=attacker_count, inline=True)
+    embed.add_field(name="Delay", value=delta, inline=True)
+    embed.add_field(name="Attacking Corp", value=corp_info["name"] + alli_name)
+    if len(route) > 0:
+        embed.add_field(name="Route", value=froute, inline=False)
+
     final_message.append(msg["url"])
 
     final_message = '\n'.join(final_message)
-    msg = await channel.send(final_message)
+    msg = await channel.send(ping_role, embed=embed)
     await msg.add_reaction(config["discord"]["react_emoji_id"])
 
 
