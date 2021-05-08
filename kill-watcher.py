@@ -171,7 +171,15 @@ async def on_raw_reaction_add(payload):
     if msg.author != discord_client.user:
         return
 
-    match = re_killurl.search(msg.content)
+    if len(msg.embeds) > 0:
+        embed = msg.embeds[0]
+    else:
+        embed = None
+
+    if embed is None:
+        match = re_killurl.search(msg.content)
+    else:
+        match = re_killurl.search(embed.url)
 
     if match is None:
         log.info("Reaction did not contain a zkillboard link. Skipping")
@@ -188,11 +196,14 @@ async def on_raw_reaction_add(payload):
         if system_id is not None and killid is not None:
             sm.remember_kill(killid, system_id)
 
-    match = re_sysname.search(msg.content)
-    if match is None:
-        return
-
-    sysname = match.groups(1)[0]
+    if embed is None:
+        match = re_sysname.search(msg.content)
+        if match is None:
+            return
+        sysname = match.groups(1)[0]
+    else:
+        system = await esi.fetch_system(system_id)
+        sysname = system["name"]
 
     try:
         sm.set_rally_point(system_id)
