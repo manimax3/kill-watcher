@@ -7,7 +7,6 @@ import toml
 import mysql.connector as connector
 import logging as log
 import re
-import redis
 from datetime import datetime, timezone, timedelta
 from collections import defaultdict
 
@@ -72,8 +71,10 @@ class SystemsManager:
         con.commit()
         con.close()
 
-        r = redis.Redis(host=red_conf["host"], port=red_conf["port"])
-        r.flushall()
+        if config["redis"].get("enabled", True):
+            import redis
+            r = redis.Redis(host=red_conf["host"], port=red_conf["port"])
+            r.flushall()
 
     def get_system_of_kill(self, kill_id):
         for k, s in self.kills:
