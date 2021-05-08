@@ -4,116 +4,22 @@ import websockets
 import json
 import discord
 import toml
-import mysql.connector as connector
 import logging as log
 import re
 from datetime import datetime, timezone, timedelta
 from collections import defaultdict
 
-
-class SystemNotFound(Exception):
-    pass
-
-
-class SystemsManager:
-    def __init__(self, mapid):
-        self.systems = []
-        self.mapid = mapid
-        self.kills = []
-
-    def fetch_systems(self, mapid):
-        con = connector.connect(user=db["user"],
-                                password=db["password"],
-                                host=db["host"],
-                                port=db["port"],
-                                database=db["pathfinder_name"])
-        cur = con.cursor()
-
-        cur.execute(
-            f"SELECT system.systemId, system.id FROM {db['pathfinder_name']}.map, {db['pathfinder_name']}.system "
-            "WHERE system.active <> 0 AND map.id = system.mapId AND map.id = %s",
-            (mapid, ))
-
-        results = [row for row in cur]
-
-        cur.close()
-        con.close()
-
-        return results
-
-    def update(self):
-        new_systems = self.fetch_systems(self.mapid)
-        gone_systems = set(self.systems) - set(new_systems)
-        added_systems = set(new_systems) - set(self.systems)
-        self.systems = new_systems
-
-        commands = []
-        for s in gone_systems:
-            commands.append(
-                json.dumps({
-                    "action": "unsub",
-                    "channel": f"system:{s[0]}"
-                }))
-        for s in added_systems:
-            commands.append(
-                json.dumps({
-                    "action": "sub",
-                    "channel": f"system:{s[0]}"
-                }))
-
-        return commands
-
-    def remember_kill(self, killid, systemid):
-        self.kills.append((killid, systemid))
-
-    def set_rally_point(self, system_id):
-        con = connector.connect(user=db["user"],
-                                password=db["password"],
-                                host=db["host"],
-                                port=db["port"],
-                                database=db["pathfinder_name"])
-        cur = con.cursor()
-
-        cur.execute(
-            f"SELECT count(*) FROM {db['pathfinder_name']}.system WHERE system.active <> 0 AND system.systemId = %s",
-            (system_id, ))
-        if cur.fetchone()[0] == 0:
-            cur.close()
-            con.close()
-            raise SystemNotFound("Could not set RallyPoint")
-
-        timestamp = datetime.utcnow().strftime("%Y-%m-%d %T")
-
-        cur.execute(
-            f"UPDATE {db['pathfinder_name']}.system SET updated = %s, rallyUpdated = system.updated "
-            "WHERE system.systemId = %s", (timestamp, system_id))
-
-        cur.close()
-        con.commit()
-        con.close()
-
-        if config["redis"].get("enabled", True):
-            import redis
-            r = redis.Redis(host=red_conf["host"], port=red_conf["port"])
-            r.flushall()
-
-    def get_system_of_kill(self, kill_id):
-        for k, s in self.kills:
-            if k == kill_id:
-                return s
-        return None
-
+from system_manager import SystemsManager, SystemNotFound
+import esi
 
 config = toml.load("config.toml")
-db = config["db"]
-red_conf = config["redis"]
 
 esi_endpoint = "https://esi.evetech.net/latest"
 log.basicConfig(format='%(asctime)s %(message)s',
                 level=getattr(log, config["watcher"]["loglevel"], log.INFO))
 
 discord_client = discord.Client()
-sm = SystemsManager(config["watcher"]["mapid"])
+sm = SystemsManager(config)
 
 re_killurl = re.compile(r"https://zkillboard\.com/kill/([0-9]+)/")
 re_sysname = re.compile(r"Kill occurred in (.*)\n")
@@ -131,15 +37,8 @@ async def consumer(msg):
     if not all(k in msg for k in ("killID", "hash")):
         return
 
-    async with aiohttp.ClientSession() as s:
-        async with s.get(
-            f"{esi_endpoint}/killmails/{msg['killID']}/{msg['hash']}/?datasource=tranquility") \
-                as response:
-            killmail = await response.json()
-        async with s.get(
-            f"{esi_endpoint}/universe/systems/{killmail['solar_system_id']}/?datasource=tranquility") \
-                as response:
-            system = await response.json()
+    killmail = await esi.fetch_killmail(msg["killID"], msg["hash"])
+    system = await esi.fetch_system(killmail["solar_system_id"])
 
     if system["security_status"] >= 0.5:
         # We dont care about highsec kills
@@ -215,19 +114,9 @@ async def consumer(msg):
     ]
 
     if main_corp is not None:
-        async with aiohttp.ClientSession() as s:
-            async with s.get(
-                f"{esi_endpoint}/corporations/{main_corp}/") \
-                    as response:
-                corp_info = await response.json()
-            if "alliance_id" in corp_info:
-                async with s.get(
-                    f"{esi_endpoint}/alliances/{corp_info['alliance_id']}/") \
-                        as response:
-                    alli_info = await response.json()
-                    alli_name = ' (' + alli_info["name"] + ')'
-            else:
-                alli_name = ""
+        corp_info, alli_info = await esi.fetch_corporation(main_corp,
+                                                           alliance=True)
+        alli_name = ' (' + alli_info["name"] + ')' if alli_info else ""
         final_message.append(f"Attacking Corp: {corp_info['name']}{alli_name}")
 
     final_message.append(msg["url"])
@@ -292,18 +181,8 @@ async def on_raw_reaction_add(payload):
     if system_id is None:
         log.info(
             f"Could not lookup systemid for kill {killid}. Asking zkillboard")
-        async with aiohttp.ClientSession() as s:
-            async with s.get(
-                    f"https://zkillboard.com/api/killID/{killid}/") \
-                    as response:
-                zkb_data = await response.json()
-                zkb_data = zkb_data[0]["zkb"]
-                killhash = zkb_data["hash"]
-            async with s.get(
-                f"{esi_endpoint}/killmails/{killid}/{killhash}/?datasource=tranquility") \
-                    as response:
-                killmail = await response.json()
-                system_id = killmail["solar_system_id"]
+        killmail = await esi.fetch_killmail(killid, hash=None)
+        system_id = killmail["solar_system_id"]
         if system_id is not None and killid is not None:
             sm.remember_kill(killid, system_id)
 
