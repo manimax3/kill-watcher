@@ -10,6 +10,7 @@ from datetime import datetime, timezone, timedelta
 from collections import defaultdict
 
 from system_manager import SystemsManager, SystemNotFound
+from routing import RoutingManager
 import esi
 import filters
 
@@ -21,6 +22,7 @@ log.basicConfig(format='%(asctime)s %(message)s',
 
 discord_client = discord.Client()
 sm = SystemsManager(config)
+rm = RoutingManager(config)
 
 re_killurl = re.compile(r"https://zkillboard\.com/kill/([0-9]+)/")
 re_sysname = re.compile(r"Kill occurred in (.*)\n")
@@ -88,9 +90,14 @@ async def consumer(msg):
 
     sm.remember_kill(msg["killID"], killmail["solar_system_id"])
 
+    d, route = rm.shortest_route(killmail["solar_system_id"])
+    route = rm.resolve_route_disi_nameing(route)
+    route = " -> ".join(route)
+
     final_message = [
         ping_role, f"Kill occurred in {system['name']}",
-        f"Happend {delta} ago.", f"Attackers: {attacker_count}"
+        f"Happend {delta} ago.", f"Attackers: {attacker_count}",
+        f"Route: {route}"
     ]
 
     if main_corp is not None:
@@ -116,6 +123,7 @@ async def consumer_handler(websocket):
 async def producer_handler(websocket):
     await websocket.send(json.dumps({"action": "sub", "channel": "public"}))
     while True:
+        rm.fetch_routinginformation()
         commands = sm.update()
         for cmd in commands:
             await websocket.send(cmd)
