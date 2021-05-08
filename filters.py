@@ -37,10 +37,8 @@ def ship_type(killmail, filter_ship_types):
     ship_type = killmail["victim"]["ship_type_id"]
 
     if ship_type in filter_ship_types:
-        print("filtered?")
         return False, "Ship type filtered"
 
-    print("not filtered?")
     return True, ""
 
 
