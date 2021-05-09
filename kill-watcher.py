@@ -96,17 +96,16 @@ async def consumer(msg):
     route = rm.resolve_route_disi_nameing(route)
     froute = " -> ".join(route)
 
-    final_message = [
-        ping_role, f"Kill occurred in {system['name']}",
-        f"Happend {delta} ago.", f"Attackers: {attacker_count}",
-        f"Route: {route}"
-    ]
+    if config["discord"].get(
+            "ping_only_if_route",
+            False) and "routing" in config and "root" in config[
+                "routing"] and len(route) == 0:
+        ping_role = ""
 
     if main_corp is not None:
         corp_info, alli_info = await esi.fetch_corporation(main_corp,
                                                            alliance=True)
         alli_name = ' (' + alli_info["name"] + ')' if alli_info else ""
-        final_message.append(f"Attacking Corp: {corp_info['name']}{alli_name}")
 
     ship_type = await ship_type
 
@@ -131,9 +130,6 @@ async def consumer(msg):
     if len(ping_role) > 0:
         embed.add_field(name="Ping", value=ping_role, inline=False)
 
-    final_message.append(msg["url"])
-
-    final_message = '\n'.join(final_message)
     msg = await channel.send(embed=embed)
     await msg.add_reaction(config["discord"]["react_emoji_id"])
 
