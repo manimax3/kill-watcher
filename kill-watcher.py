@@ -121,16 +121,20 @@ async def consumer(msg):
     embed.add_field(name="Attackers", value=attacker_count, inline=True)
     embed.add_field(name="Delay", value=delta, inline=True)
     if main_corp is not None:
-        embed.add_field(name="Attacking Corp", value=corp_info["name"] + alli_name)
+        embed.add_field(name="Attacking Corp",
+                        value=corp_info["name"] + alli_name)
     else:
         embed.add_field(name="Attacking Corp", value="NPC")
     if len(route) > 0:
         embed.add_field(name="Route", value=froute, inline=False)
 
+    if len(ping_role) > 0:
+        embed.add_field(name="Ping", value=ping_role, inline=False)
+
     final_message.append(msg["url"])
 
     final_message = '\n'.join(final_message)
-    msg = await channel.send(ping_role, embed=embed)
+    msg = await channel.send(embed=embed)
     await msg.add_reaction(config["discord"]["react_emoji_id"])
 
 
