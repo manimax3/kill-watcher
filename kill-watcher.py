@@ -49,6 +49,8 @@ async def consumer(msg):
 
     killmail = await esi.fetch_killmail(msg["killID"], msg["hash"])
     system = await esi.fetch_system(killmail["solar_system_id"])
+    ship_type = asyncio.create_task(
+        esi.fetch_typeinformation(killmail["victim"]["ship_type_id"]))
 
     if (check_filter(filters.highsec(system), msg["killID"]) or check_filter(
             filters.corporations(
@@ -106,17 +108,22 @@ async def consumer(msg):
         alli_name = ' (' + alli_info["name"] + ')' if alli_info else ""
         final_message.append(f"Attacking Corp: {corp_info['name']}{alli_name}")
 
+    ship_type = await ship_type
+
     embed = discord.Embed()
-    embed.title = "Killping"
+    embed.title = f"Killping - {ship_type['name']}"
     embed.url = msg["url"]
     embed.set_image(
         url=
-        f"https://images.evetech.net/types/{killmail['victim']['ship_type_id']}/render?size=32"
+        f"https://images.evetech.net/types/{killmail['victim']['ship_type_id']}/render?size=64"
     )
     embed.add_field(name="Location", value=system['name'], inline=True)
     embed.add_field(name="Attackers", value=attacker_count, inline=True)
     embed.add_field(name="Delay", value=delta, inline=True)
-    embed.add_field(name="Attacking Corp", value=corp_info["name"] + alli_name)
+    if main_corp is not None:
+        embed.add_field(name="Attacking Corp", value=corp_info["name"] + alli_name)
+    else:
+        embed.add_field(name="Attacking Corp", value="NPC")
     if len(route) > 0:
         embed.add_field(name="Route", value=froute, inline=False)
 

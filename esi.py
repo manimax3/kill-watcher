@@ -31,6 +31,15 @@ async def fetch_system(system_id):
             return system
 
 
+async def fetch_typeinformation(type_id):
+    async with aiohttp.ClientSession() as s:
+        async with s.get(
+            f"{esi_endpoint}/universe/types/{type_id}/?datasource=tranquility") \
+                as response:
+            typeinfo = await response.json()
+            return typeinfo
+
+
 async def fetch_corporation(corp_id, alliance=False):
     async with aiohttp.ClientSession() as s:
         async with s.get(
